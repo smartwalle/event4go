@@ -90,6 +90,35 @@ func (this *NotificationCenter) RemoveObserver(name string, handler Notification
 	}
 }
 
+func (this *NotificationCenter) RemoveObserverWithName(name string) {
+	if len(name) == 0 {
+		return
+	}
+
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
+	var handlerChain, ok = this.handlerChainList[name]
+	if ok == false {
+		return
+	}
+
+	close(handlerChain.notification)
+	handlerChain.handlerList = nil
+	delete(this.handlerChainList, name)
+}
+
+func (this *NotificationCenter) RemoveAll() {
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
+	for key, handlerChain := range this.handlerChainList {
+		close(handlerChain.notification)
+		handlerChain.handlerList = nil
+		delete(this.handlerChainList, key)
+	}
+}
+
 func (this *NotificationCenter) PostNotification(name string, userInfo interface{}) {
 	if len(name) == 0 {
 		return

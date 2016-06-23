@@ -9,7 +9,7 @@ type handlerChain struct {
 
 func newHandlerChain() *handlerChain {
 	var c = &handlerChain{}
-	c.notification = make(chan *Notification)
+	c.notification = make(chan *Notification, 32)
 	go c.run()
 	return c
 }
