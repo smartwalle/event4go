@@ -1,36 +1,36 @@
 package main
 
 import (
-	"github.com/smartwalle/notification"
 	"fmt"
 	"time"
+	"github.com/smartwalle/event4go"
 )
 
 func main() {
 
 	var be = time.Now()
 
-	var a notification.NotificationHandler
-	a = func (noti *notification.Notification) {
+	var a event4go.EventHandler
+	a = func (noti *event4go.Event) {
 		//fmt.Println("a", noti)
 	}
-	var b = func (noti *notification.Notification) {
+	var b = func (noti *event4go.Event) {
 		//fmt.Println("b", noti)
 	}
 
-	notification.DefaultCenter().AddObserver("hi1", a)
-	notification.DefaultCenter().AddObserver("hi2", b)
-	notification.DefaultCenter().RemoveObserverWithName("hi1")
+	event4go.DefaultCenter().AddHandler("hi1", a)
+	event4go.DefaultCenter().AddHandler("hi2", b)
+	event4go.DefaultCenter().RemoveHandlerWithName("hi1")
 
 	for i:=0; i<1000000; i++ {
-		notification.DefaultCenter().PostNotification("hi1", fmt.Sprintf("%d", i))
-		notification.DefaultCenter().PostNotification("hi2", fmt.Sprintf("%d", i))
+		event4go.DefaultCenter().PostEvent("hi1", fmt.Sprintf("%d", i))
+		event4go.DefaultCenter().PostEvent("hi2", fmt.Sprintf("%d", i))
 	}
 
 
 
 	fmt.Println("dd", time.Now().Sub(be).Seconds())
 
-	//notification.DefaultCenter().RemoveObserver("hi", a)
-	//notification.DefaultCenter().RemoveObserver("hi", b)
+	//event4go.DefaultCenter().RemoveHandler("hi", a)
+	//event4go.DefaultCenter().RemoveHandler("hi", b)
 }

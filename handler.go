@@ -1,15 +1,15 @@
-package notification
+package event4go
 
-type NotificationHandler func(notification *Notification)
+type EventHandler func(notification *Event)
 
 type handlerChain struct {
-	notification chan *Notification
-	handlerList  []NotificationHandler
+	event       chan *Event
+	handlerList []EventHandler
 }
 
 func newHandlerChain() *handlerChain {
 	var c = &handlerChain{}
-	c.notification = make(chan *Notification, 32)
+	c.event = make(chan *Event, 32)
 	go c.run()
 	return c
 }
@@ -17,13 +17,13 @@ func newHandlerChain() *handlerChain {
 func (this *handlerChain) run() {
 	for {
 		select {
-		case noti, ok := <-this.notification:
+		case e, ok := <-this.event:
 			if ok == false {
 				return
 			}
 
 			for _, handler := range this.handlerList {
-				handler(noti)
+				handler(e)
 			}
 		}
 	}

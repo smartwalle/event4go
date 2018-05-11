@@ -1,33 +1,33 @@
-package notification
+package event4go
 
 import (
 	"sync"
 	"unsafe"
 )
 
-var instance *NotificationCenter
+var instance *Center
 var once sync.Once
 
-func DefaultCenter() *NotificationCenter {
+func DefaultCenter() *Center {
 	once.Do(func() {
-		instance = NewNotificationCenter()
+		instance = NewCenter()
 	})
 	return instance
 }
 
-type NotificationCenter struct {
+type Center struct {
 	mutex            *sync.Mutex
 	handlerChainList map[string]*handlerChain
 }
 
-func NewNotificationCenter() *NotificationCenter {
-	var center = &NotificationCenter{}
+func NewCenter() *Center {
+	var center = &Center{}
 	center.mutex = &sync.Mutex{}
 	center.handlerChainList = make(map[string]*handlerChain)
 	return center
 }
 
-func (this *NotificationCenter) AddObserver(name string, handler NotificationHandler) {
+func (this *Center) AddHandler(name string, handler EventHandler) {
 	if len(name) == 0 {
 		return
 	}
@@ -55,7 +55,7 @@ func (this *NotificationCenter) AddObserver(name string, handler NotificationHan
 	handlerChain.handlerList = append(handlerChain.handlerList, handler)
 }
 
-func (this *NotificationCenter) RemoveObserver(name string, handler NotificationHandler) {
+func (this *Center) RemoveHandler(name string, handler EventHandler) {
 	if len(name) == 0 {
 		return
 	}
@@ -85,12 +85,12 @@ func (this *NotificationCenter) RemoveObserver(name string, handler Notification
 	}
 
 	if len(handlerChain.handlerList) == 0 {
-		close(handlerChain.notification)
+		close(handlerChain.event)
 		delete(this.handlerChainList, name)
 	}
 }
 
-func (this *NotificationCenter) RemoveObserverWithName(name string) {
+func (this *Center) RemoveHandlerWithName(name string) {
 	if len(name) == 0 {
 		return
 	}
@@ -103,30 +103,30 @@ func (this *NotificationCenter) RemoveObserverWithName(name string) {
 		return
 	}
 
-	close(handlerChain.notification)
+	close(handlerChain.event)
 	handlerChain.handlerList = nil
 	delete(this.handlerChainList, name)
 }
 
-func (this *NotificationCenter) RemoveAll() {
+func (this *Center) RemoveAllHandler() {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
 	for key, handlerChain := range this.handlerChainList {
-		close(handlerChain.notification)
+		close(handlerChain.event)
 		handlerChain.handlerList = nil
 		delete(this.handlerChainList, key)
 	}
 }
 
-func (this *NotificationCenter) PostNotification(name string, userInfo interface{}) {
+func (this *Center) PostEvent(name string, userInfo interface{}) {
 	if len(name) == 0 {
 		return
 	}
-	var notification = NewNotification(name, userInfo)
+	var notification = NewEvent(name, userInfo)
 	var handlerChain, ok = this.handlerChainList[name]
 
 	if ok {
-		handlerChain.notification <- notification
+		handlerChain.event <- notification
 	}
 }
