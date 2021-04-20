@@ -5,7 +5,7 @@ type Event struct {
 	UserInfo interface{}
 }
 
-func NewEvent(name string, userInfo interface{}) *Event {
+func newEvent(name string, userInfo interface{}) *Event {
 	var e = &Event{}
 	e.Name = name
 	e.UserInfo = userInfo

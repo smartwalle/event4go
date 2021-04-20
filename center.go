@@ -1,14 +1,21 @@
 package event4go
 
 import (
+	"errors"
 	"sync"
+	"time"
 	"unsafe"
+)
+
+var (
+	ErrTimeout         = errors.New("event send timeout")
+	ErrNotFoundHandler = errors.New("not found handler")
 )
 
 var instance *Center
 var once sync.Once
 
-func DefaultCenter() *Center {
+func Default() *Center {
 	once.Do(func() {
 		instance = NewCenter()
 	})
@@ -16,18 +23,18 @@ func DefaultCenter() *Center {
 }
 
 type Center struct {
-	mutex            *sync.Mutex
-	handlerChainList map[string]*handlerChain
+	mu         *sync.Mutex
+	hChainList map[string]*handlerChain
 }
 
 func NewCenter() *Center {
 	var center = &Center{}
-	center.mutex = &sync.Mutex{}
-	center.handlerChainList = make(map[string]*handlerChain)
+	center.mu = &sync.Mutex{}
+	center.hChainList = make(map[string]*handlerChain)
 	return center
 }
 
-func (this *Center) AddHandler(name string, handler EventHandler) {
+func (this *Center) Handle(name string, handler EventHandler) {
 	if len(name) == 0 {
 		return
 	}
@@ -36,23 +43,23 @@ func (this *Center) AddHandler(name string, handler EventHandler) {
 		return
 	}
 
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
-	var handlerChain, ok = this.handlerChainList[name]
+	var hChain, ok = this.hChainList[name]
 	if ok == false {
-		handlerChain = newHandlerChain()
-		this.handlerChainList[name] = handlerChain
+		hChain = newHandlerChain()
+		this.hChainList[name] = hChain
 	}
 
 	var handlerValue = *(*int)(unsafe.Pointer(&handler))
-	for _, ob := range handlerChain.handlerList {
+	for _, ob := range hChain.handlerList {
 		if *(*int)(unsafe.Pointer(&ob)) == handlerValue {
 			return
 		}
 	}
 
-	handlerChain.handlerList = append(handlerChain.handlerList, handler)
+	hChain.handlerList = append(hChain.handlerList, handler)
 }
 
 func (this *Center) RemoveHandler(name string, handler EventHandler) {
@@ -64,29 +71,29 @@ func (this *Center) RemoveHandler(name string, handler EventHandler) {
 		return
 	}
 
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
-	var handlerChain, ok = this.handlerChainList[name]
+	var hChain, ok = this.hChainList[name]
 	if ok == false {
 		return
 	}
 
 	var index = -1
 	var observerValue = *(*int)(unsafe.Pointer(&handler))
-	for i, ob := range handlerChain.handlerList {
+	for i, ob := range hChain.handlerList {
 		if *(*int)(unsafe.Pointer(&ob)) == observerValue {
 			index = i
 		}
 	}
 
 	if index >= 0 {
-		handlerChain.handlerList = append(handlerChain.handlerList[:index], handlerChain.handlerList[index+1:]...)
+		hChain.handlerList = append(hChain.handlerList[:index], hChain.handlerList[index+1:]...)
 	}
 
-	if len(handlerChain.handlerList) == 0 {
-		close(handlerChain.event)
-		delete(this.handlerChainList, name)
+	if len(hChain.handlerList) == 0 {
+		close(hChain.event)
+		delete(this.hChainList, name)
 	}
 }
 
@@ -95,38 +102,47 @@ func (this *Center) RemoveHandlerWithName(name string) {
 		return
 	}
 
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
-	var handlerChain, ok = this.handlerChainList[name]
+	var hChain, ok = this.hChainList[name]
 	if ok == false {
 		return
 	}
 
-	close(handlerChain.event)
-	handlerChain.handlerList = nil
-	delete(this.handlerChainList, name)
+	close(hChain.event)
+	hChain.handlerList = nil
+	delete(this.hChainList, name)
 }
 
 func (this *Center) RemoveAllHandler() {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
-	for key, handlerChain := range this.handlerChainList {
-		close(handlerChain.event)
-		handlerChain.handlerList = nil
-		delete(this.handlerChainList, key)
+	for key, hChain := range this.hChainList {
+		close(hChain.event)
+		hChain.handlerList = nil
+		delete(this.hChainList, key)
 	}
 }
 
-func (this *Center) PostEvent(name string, userInfo interface{}) {
+func (this *Center) Post(name string, userInfo interface{}) error {
 	if len(name) == 0 {
-		return
+		return ErrNotFoundHandler
 	}
-	var notification = NewEvent(name, userInfo)
-	var handlerChain, ok = this.handlerChainList[name]
+	var event = newEvent(name, userInfo)
 
-	if ok {
-		handlerChain.event <- notification
+	this.mu.Lock()
+	var hChain = this.hChainList[name]
+	this.mu.Unlock()
+
+	if hChain != nil {
+		select {
+		case hChain.event <- event:
+			return nil
+		case <-time.After(time.Second * 3):
+			return ErrTimeout
+		}
 	}
+	return ErrNotFoundHandler
 }
