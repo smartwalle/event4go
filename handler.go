@@ -1,6 +1,6 @@
 package event4go
 
-type EventHandler func(notification *Event)
+type EventHandler func(event *Event)
 
 type handlerChain struct {
 	event       chan *Event
